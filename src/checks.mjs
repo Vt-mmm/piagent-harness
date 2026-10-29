@@ -111,7 +111,7 @@ export const onlyNonCode = paths => { const list = [...(paths ?? [])]; return li
 const GIT_VERBS = 'status|diff|log|show|branch|ls-files|rev-parse|rev-list|blame|describe|shortlog|cat-file|for-each-ref|reflog(?!\\s+(expire|delete))';
 const GIT_READ = String.raw`git(\s+(-C\s+('[^']*'|"[^"]*"|\S+)|-c\s+\S+|--no-pager))*\s+(${GIT_VERBS}|remote(\s+(-v|--verbose|show|get-url)\b|$))`;
 const READERS = 'ls|cat|head|tail|wc|grep|egrep|rg|find|fd|sed|awk|cut|sort|uniq|tr|echo|printf|pwd|which|stat|file|du|df|tree|jq|diff|cmp|basename|dirname|realpath|date|true|cd'
-  + '|printenv|uname|whoami|id|hostname|ps|uptime|env(?=\s*$)|less|more|nl|rev|shasum|md5|md5sum|readlink|lsof';
+  + '|printenv|uname|whoami|id|hostname|ps|uptime|env(?=\\s*$)|less|more|nl|rev|shasum|md5|md5sum|readlink|lsof';
 const READER = new RegExp(String.raw`^(${READERS}|${GIT_READ})(\b|$)`);
 export function isReadOnlyCommand(command) {
   const text = String(command ?? '').trim();
