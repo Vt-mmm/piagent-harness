@@ -76,7 +76,7 @@ export default function piagentHarness(pi, options = {}) {
     children: null,
   };
   h.children = (() => {
-    const real = childSessions({ events, cwd, loadSdk, loadAi: options.loadAi, extraTools: role => memory && role !== 'verify' ? memoryTools(memory, { readOnly: true }) : [] });
+    const real = childSessions({ events, cwd, loadSdk, loadAi: options.loadAi, extraTools: role => memory && state?.capabilities?.includes('memory') && role !== 'verify' ? memoryTools(memory, { readOnly: true }) : [] });
     return { async create(spec) {
       const child = await real.create(spec);
       helpersRunning += 1; helpersTotal += 1; ui?.redraw(); status?.set('working', { helpers: helpersRunning });
