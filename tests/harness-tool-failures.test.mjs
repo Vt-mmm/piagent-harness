@@ -16,7 +16,7 @@ test('failure codes', () => {
 test('the home folder and secrets never leave; a long error keeps head and tail', () => {
   const f = toolFailure({ tool: 'bash', role: 'main', input: { command: 'cat /Users/me/x' }, content: text(`/Users/me/a
 as_run_00000000-0000-4000-8000-0000000000a1_abcdefghijklmnopqrstuvwxyzabcdefghijklmnopq ${'e'.repeat(5000)}END`), startedAt: 1, endedAt: 5, home: '/Users/me' });
-  assert.equal(f.input, 'cat ~/x'); assert.doesNotMatch(f.error, /as_run_|\/Users\/me/); assert.match(f.error, /characters left out/); assert.match(f.error, /END$/);
+  assert.equal(f.input, 'cat'); assert.doesNotMatch(f.error, /as_run_|\/Users\/me/); assert.match(f.error, /characters left out/); assert.match(f.error, /END$/);
   assert.equal(f.duration_ms, 4);
   assert.equal(toolFailure({ tool: 'bash', role: 'main', content: text('x\nCommand aborted'), endedAt: 1 }), null, 'the member stopping it is no failure');
 });

@@ -19,7 +19,7 @@ import { SkillFeedback } from './skill-feedback.mjs';
 import { ToolFailureLog } from './tool-failures.mjs';
 import { CompactionPolicy, planInstructions } from './compaction.mjs';
 import { askTool } from './member-questions.mjs';
-import { ToolsetGuard } from './guard.mjs';
+import { ToolsetGuard, pinnedSandboxRoot } from './guard.mjs';
 import { sendProcessReport } from './report.mjs';
 import { StatusFile, agentDir } from './status-file.mjs';
 import { installCompanyUi, registerStyleCommand } from './ui.mjs';
@@ -48,7 +48,7 @@ export default function piagentHarness(pi, options = {}) {
   const now = options.now ?? Date.now;
   const toolFailures = new ToolFailureLog(studio, { now });
   const compaction = new CompactionPolicy(now);
-  const guard = new ToolsetGuard({ events, getTools: () => pi.getAllTools?.() ?? [], report: bad => reportBlocked(bad) });
+  const guard = new ToolsetGuard({ events, getTools: () => pi.getAllTools?.() ?? [], pinned: options.sandboxRoot ?? pinnedSandboxRoot(import.meta.filename), report: bad => reportBlocked(bad) });
   let state = null, policy = workflowpolicyOff(), checks = { source: 'detected', commands: [] };
   let current = { ctx: null }, continuation = null, memory = null, lessons = null, feedback = null, status = null, ui = null, brief = null, helpersRunning = 0, helpersTotal = 0;
   let askActive = false, roundStarted = 0, delegateRegistered = false, memoryRegistered = false, mode = 'ask';
