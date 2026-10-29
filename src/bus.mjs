@@ -4,7 +4,7 @@
 export const CHANNELS = Object.freeze({
   grantRequest: 'piagent:grant.request', grantClose: 'piagent:grant.close', runState: 'piagent:run.state', runProcess: 'piagent:run.process',
   studioCall: 'piagent:studio.call', toolsAttest: 'piagent:tools.attest', permissionMode: 'piagent:permission.mode',
-  childTools: 'piagent:tools.child', toolsBlocked: 'piagent:tools.blocked',
+  childTools: 'piagent:tools.child', childToolsClose: 'piagent:tools.child.close', toolsBlocked: 'piagent:tools.blocked',
 });
 export const CONTRACT_VERSION = 1;
 

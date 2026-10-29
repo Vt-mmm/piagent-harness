@@ -33,9 +33,14 @@ export function childSessions({ events, cwd, loadSdk, loadAi = () => import('@ea
       const slot = slotOf(key ?? role);
       const granted = await request(events, CHANNELS.grantRequest, { role: roleOf(role), ...(slot ? { slot } : {}) }, { timeoutMs: GRANT_WAIT_MS });
       if (!granted?.ok) throw Error(granted?.error ? String(granted.error) : 'managed-helper-grant-unavailable');
-      let open = true;
-      const close = async () => { if (open) { open = false; events.emit(CHANNELS.grantClose, { v: CONTRACT_VERSION, role: roleOf(role), ...(slot ? { slot } : {}) }); } };
+      let open = true, toolsOpen = false;
+      // The sandbox keeps a read-only boundary per key until told to drop it.
+      const close = async () => {
+        if (toolsOpen) { toolsOpen = false; events.emit(CHANNELS.childToolsClose, { v: CONTRACT_VERSION, key: key ?? role }); }
+        if (open) { open = false; events.emit(CHANNELS.grantClose, { v: CONTRACT_VERSION, role: roleOf(role), ...(slot ? { slot } : {}) }); }
+      };
       try {
+        toolsOpen = true;
         const tools = await request(events, CHANNELS.childTools, { readOnly: true, commands: !!setup.commands, web: !!setup.web, key: key ?? role }, { timeoutMs: GRANT_WAIT_MS });
         if (!tools?.ok) throw Error(tools?.error ? String(tools.error) : 'managed-helper-tools-unavailable');
         const [sdk, ai] = await Promise.all([loadSdk(), loadAi()]);

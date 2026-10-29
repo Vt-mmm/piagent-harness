@@ -73,6 +73,8 @@ test('child session: grant of its own from the provider, read-only tools from th
   events.on(CHANNELS.grantRequest, data => { requests.push(data); data.reply({ v: 1, ok: true, role: data.role, effort: 'low', models: [{ id: 'm1', contextWindow: 100_000, maxTokens: 4000,
     reasoning: true }], stream: (context, options) => { streamed.push(context); return 'stream'; } }); });
   events.on(CHANNELS.grantClose, data => closes.push(data));
+  const toolCloses = [];
+  events.on(CHANNELS.childToolsClose, data => toolCloses.push(data));
   events.on(CHANNELS.childTools, data => { requests.push(data); data.reply({ ok: true, tools: ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write'].map(name => ({ name })) }); });
   let sessionOptions = null, provider = null;
   const runtime = { registerProvider: (name, config) => { provider = { name, config }; }, getModel: (p, id) => ({ provider: p, id }) };
@@ -91,15 +93,19 @@ test('child session: grant of its own from the provider, read-only tools from th
   provider.config.streamSimple({}, 'ctx', {}); assert.deepEqual(streamed, ['ctx'], 'the model streams through the grant, no token in the harness');
   await child.close(); await child.close();
   assert.deepEqual(closes.map(c => [c.role, c.slot]), [['review', 2]], 'closed once');
+  assert.deepEqual(toolCloses.map(c => [c.v, c.key]), [[1, 'review#2']], 'the sandbox is told to drop the helper\'s read-only boundary, once, under the key it was given');
 });
 
 test('no read-only tools from the sandbox: the helper does not start and its grant is closed', async () => {
   const events = fakeBus(), closes = [];
   events.on(CHANNELS.grantRequest, data => data.reply({ ok: true, models: [{ id: 'm' }], stream() {} }));
   events.on(CHANNELS.grantClose, d => closes.push(d));
+  const toolCloses = [];
+  events.on(CHANNELS.childToolsClose, d => toolCloses.push(d));
   events.on(CHANNELS.childTools, data => data.reply({ ok: false, error: 'no-child-tools' }));
   await assert.rejects(childSessions({ events, cwd: '/p', loadSdk: async () => ({}) }).create({ role: 'scout', key: 'scout', setup: {} }), /no-child-tools/);
   assert.equal(closes.length, 1);
+  assert.equal(toolCloses.length, 1, 'a failed start also releases the boundary');
 });
 
 test('child grant refused: the helper fails with the provider\'s reason', async () => {
