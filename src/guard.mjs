@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { CHANNELS, CONTRACT_VERSION } from './bus.mjs';
+import { nonceOk } from './bus-nonce.mjs';
 
 // The core tools must come from piagent-sandbox: it is the boundary that keeps
 // reads, writes and commands inside the project. When a session opens, each of
@@ -52,10 +53,13 @@ export function checkToolset(tools, attested, pinned = null) {
 export const BLOCK_REASON = 'managed-toolset-untrusted: the core tools (bash, read, edit, write, grep, find, ls) do not come from piagent-sandbox, '
   + 'so no tool call is allowed. Start Pi with piagent-sandbox loaded before any other package that registers these tools.';
 
+export const BUS_REASON = 'managed-bus-untrusted: the sandbox and the provider did not both join the startup handshake of the event bus, so no tool call is allowed. '
+  + 'Start Pi with piagent-harness first, then piagent-sandbox and piagent-provider, and no other extension.';
+
 export class ToolsetGuard {
-  constructor({ events, getTools, report = async () => {}, pinned = null }) { Object.assign(this, { events, getTools, report, pinned, attested: new Map(), blocked: false, bad: [], reported: false, checked: false }); }
+  constructor({ events, getTools, report = async () => {}, pinned = null, busReady = null }) { Object.assign(this, { events, getTools, report, pinned, busReady, attested: new Map(), blocked: false, bad: [], reported: false, checked: false }); }
   start() {
-    return this.events.on(CHANNELS.toolsAttest, data => { for (const t of Array.isArray(data?.tools) ? data.tools : []) if (typeof t?.name === 'string'
+    return this.events.on(CHANNELS.toolsAttest, data => { if (!nonceOk(this.events, data)) return; for (const t of Array.isArray(data?.tools) ? data.tools : []) if (typeof t?.name === 'string'
       && typeof t.source === 'string') this.attested.set(t.name, t.source); });
   }
   // Called before each run (and before the first tool call if no run came first): decides, tells Studio once.
@@ -77,5 +81,6 @@ export class ToolsetGuard {
     try { this.reported = (await this.report(this.bad)) !== false; } catch { /* Studio may be unreachable: tried again */ }
   }
   // The tool_call handler's answer.
-  onToolCall() { return this.blocked ? { block: true, reason: BLOCK_REASON } : undefined; }
+  // `busReady`: false while the startup handshake of the bus (bus-nonce.mjs) is incomplete, which blocks like an untrusted toolset.
+  onToolCall() { return this.blocked ? { block: true, reason: BLOCK_REASON } : this.busReady && !this.busReady() ? { block: true, reason: BUS_REASON } : undefined; }
 }

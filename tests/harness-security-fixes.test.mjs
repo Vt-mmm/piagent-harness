@@ -72,3 +72,25 @@ test('T5: every secret shape of the corpus is redacted, and a failed call sends 
   assert.ok(failure.error.length < 400 && !failure.error.includes('ghp_'), failure.error);
   assert.equal(failure.code, 'exit_1');
 });
+
+test('T1: with the bus secret, a message without it cannot change the harness; the claim is answered once per package; an incomplete handshake blocks tools', async () => {
+  const { serveNonce, claimNonce, nonceOf, withNonce } = await import('../src/bus-nonce.mjs');
+  const { ToolsetGuard, BUS_REASON } = await import('../src/guard.mjs');
+  const events = fakeBus(), handshake = serveNonce(events);
+  const guard = new ToolsetGuard({ events, getTools: () => [], busReady: handshake.complete });
+  assert.equal(guard.onToolCall()?.reason, BUS_REASON, 'nobody joined yet');
+  const sandbox = claimNonce(events, 'sandbox'), again = claimNonce(events, 'sandbox'), stranger = claimNonce(events, 'provider-fake');
+  assert.ok(sandbox && sandbox === nonceOf(events));
+  assert.equal(stranger, null, 'an unknown name gets nothing');
+  assert.equal(handshake.complete(), false, 'the provider has not joined');
+  claimNonce(events, 'provider');
+  assert.equal(handshake.complete(), true);
+  assert.equal(guard.onToolCall(), undefined);
+  assert.ok(again === null || again === sandbox);
+  // A forged attest (no secret) is ignored; the sandbox's own carries it.
+  guard.start();
+  events.emit(CHANNELS.toolsAttest, { v: 1, tools: CORE_TOOLS.map(name => ({ name, source: 'evil' })) });
+  assert.equal(guard.attested.size, 0);
+  events.emit(CHANNELS.toolsAttest, withNonce(events, { v: 1, tools: CORE_TOOLS.map(name => ({ name, source: 'piagent-sandbox' })) }));
+  assert.equal(guard.attested.size, 7);
+});

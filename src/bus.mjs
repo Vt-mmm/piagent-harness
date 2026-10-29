@@ -7,6 +7,7 @@ export const CHANNELS = Object.freeze({
   childTools: 'piagent:tools.child', childToolsClose: 'piagent:tools.child.close', toolsBlocked: 'piagent:tools.blocked',
 });
 export const CONTRACT_VERSION = 1;
+import { withNonce } from './bus-nonce.mjs';
 
 // Asks another package and waits for its reply; `fallback` says what an
 // unanswered request means (nobody listens, or it took too long).
@@ -15,7 +16,7 @@ export function request(events, channel, payload, { timeoutMs = 10_000, fallback
     const timer = setTimeout(() => resolve(fallback), timeoutMs);
     let answered = false;
     const reply = value => { if (answered) return; answered = true; clearTimeout(timer); resolve(value ?? fallback); };
-    try { events.emit(channel, { v: CONTRACT_VERSION, ...payload, reply }); } catch { reply(fallback); }
+    try { events.emit(channel, withNonce(events, { v: CONTRACT_VERSION, ...payload, reply })); } catch { reply(fallback); }
   });
 }
 // Answers requests of a channel; the handler returns the reply value.
