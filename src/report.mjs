@@ -1,3 +1,4 @@
+import { withNonce } from './bus-nonce.mjs';
 import { CHANNELS, CONTRACT_VERSION } from './bus.mjs';
 
 // The process report Studio keeps for a run (close body `process`), version 1
@@ -20,6 +21,6 @@ export function sendProcessReport(events, state, run, plan) {
   const version = processVersion(state);
   if (!version || !state?.workflow || !run) return null;
   const report = run.report(plan, version);
-  events.emit(CHANNELS.runProcess, { v: CONTRACT_VERSION, process: report });
+  events.emit(CHANNELS.runProcess, withNonce(events, { v: CONTRACT_VERSION, process: report }));
   return report;
 }

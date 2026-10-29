@@ -5,16 +5,23 @@ import { redact } from './redact.mjs';
 // Tool calls that failed in a company run, for Studio's logs. A failure
 // happens on the member's machine and its output stays there: an administrator
 // told "Docker does not work" had nothing to read. Each failed call is kept as
-// the tool, a stable code, what it was asked to run (a command, path or
-// address; never a search query or a brief), the end of its error output and
-// what the machine is; secrets are redacted and the home folder is written "~".
+// the tool, a stable code, the program it ran (the first words of a command;
+// never its arguments, a path, a search query or a brief), the last 300
+// characters of its error output and what the machine is; secrets are
+// redacted and the home folder is written "~". Output can hold source code,
+// so Studio gets the tail only.
 const TOOL = /^[a-z0-9_]{1,40}$/;
-const INPUT_CHARS = 500, ERROR_HEAD = 1000, ERROR_TAIL = 2000, BATCH = 20, KEEP = 100, ATTEMPTS = 3;
+const ERROR_TAIL = 300, BATCH = 20, KEEP = 100, ATTEMPTS = 3;
 // The member stopped the tool or declined to approve it: not a failure.
 const NOT_FAILURES = new Set(['managed_tool_cancelled', 'managed_helper_cancelled', 'managed_operation_denied']);
 const text = result => typeof result === 'string' ? result
   : Array.isArray(result) ? result.filter(p => p?.type === 'text').map(p => p.text ?? '').join('\n') : '';
 
+// `docker compose`, `npm test`, `cat`: the program and a plain subcommand word, never a path, flag or argument.
+const programOf = command => {
+  const [first = '', second = ''] = command.trim().split(/\s+/);
+  return `${first.split('/').pop().replace(/[^\w.+-]/g, '')}${/^[a-z][a-z-]{0,20}$/.test(second) ? ` ${second}` : ''}`.trim().slice(0, 60);
+};
 // The runtime's own code when the error starts with one, else how the command ended.
 export function toolFailureCode(error) {
   const named = /^((?:managed|web-search)-[a-z-]{1,56})\b/.exec(error)?.[1];
@@ -29,10 +36,10 @@ export function toolFailureCode(error) {
 export function toolFailure({ tool, role, input, content, startedAt, endedAt, engine, home }) {
   const error = redact(text(content), home).trim(), code = toolFailureCode(error);
   if (NOT_FAILURES.has(code)) return null;
-  const shown = redact(input?.command ?? input?.path ?? input?.url ?? '', home).trim();
-  return { id: randomUUID(), tool: TOOL.test(String(tool)) ? tool : 'other', role, code, at: endedAt, ...(shown ? { input: shown.slice(0, INPUT_CHARS) } : {}),
-    // A long output keeps its start and its end: the end is where it failed.
-    error: error.length <= ERROR_HEAD + ERROR_TAIL ? error : `${error.slice(0, ERROR_HEAD)}\n[… ${error.length - ERROR_HEAD - ERROR_TAIL} characters left out …]\n${error.slice(-ERROR_TAIL)}`,
+  const shown = typeof input?.command === 'string' ? programOf(redact(input.command, home)) : '';
+  return { id: randomUUID(), tool: TOOL.test(String(tool)) ? tool : 'other', role, code, at: endedAt, ...(shown ? { input: shown } : {}),
+    // The end of the output is where it failed.
+    error: error.length <= ERROR_TAIL ? error : `[… ${error.length - ERROR_TAIL} characters left out …]\n${error.slice(-ERROR_TAIL)}`,
     duration_ms: Math.max(0, Math.round(endedAt - (startedAt ?? endedAt))), engine: tool === 'run_with_docker' ? 'used' : engine ? 'available' : 'none' };
 }
 

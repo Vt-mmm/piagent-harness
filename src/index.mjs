@@ -19,7 +19,8 @@ import { SkillFeedback } from './skill-feedback.mjs';
 import { ToolFailureLog } from './tool-failures.mjs';
 import { CompactionPolicy, planInstructions } from './compaction.mjs';
 import { askTool } from './member-questions.mjs';
-import { ToolsetGuard } from './guard.mjs';
+import { ToolsetGuard, pinnedSandboxRoot } from './guard.mjs';
+import { nonceOk, serveNonce } from './bus-nonce.mjs';
 import { sendProcessReport } from './report.mjs';
 import { StatusFile, agentDir } from './status-file.mjs';
 import { installCompanyUi, registerStyleCommand } from './ui.mjs';
@@ -48,7 +49,10 @@ export default function piagentHarness(pi, options = {}) {
   const now = options.now ?? Date.now;
   const toolFailures = new ToolFailureLog(studio, { now });
   const compaction = new CompactionPolicy(now);
-  const guard = new ToolsetGuard({ events, getTools: () => pi.getAllTools?.() ?? [], report: bad => reportBlocked(bad) });
+  // Inside a bundle (the sandbox folder is pinned by its manifest) or when asked, the bus carries a startup secret.
+  const pinned = options.sandboxRoot ?? pinnedSandboxRoot(import.meta.filename);
+  const handshake = options.nonce ?? !!pinned ? serveNonce(events) : null;
+  const guard = new ToolsetGuard({ events, getTools: () => pi.getAllTools?.() ?? [], pinned, busReady: handshake ? handshake.complete : null, report: bad => reportBlocked(bad) });
   let state = null, policy = workflowpolicyOff(), checks = { source: 'detected', commands: [] };
   let current = { ctx: null }, continuation = null, memory = null, lessons = null, feedback = null, status = null, ui = null, brief = null, helpersRunning = 0, helpersTotal = 0;
   let askActive = false, roundStarted = 0, delegateRegistered = false, memoryRegistered = false, mode = 'ask';
@@ -98,13 +102,13 @@ export default function piagentHarness(pi, options = {}) {
 
   // What the provider tells the harness about the run (policy, roles, features, scope).
   events.on(CHANNELS.runState, data => {
-    if (!data || data.v > CONTRACT_VERSION) return;
+    if (!data || data.v > CONTRACT_VERSION || !nonceOk(events, data)) return;
     state = normalizeRunState(data, state); studio.setState(state);
     policy = state.workflow ? workflowPolicy(state) : workflowpolicyOff();
     if (typeof state.permissionMode === 'string') mode = state.permissionMode;
     registerLateTools(); ui?.redraw();
   });
-  events.on(CHANNELS.permissionMode, data => { if (['ask', 'full', 'bypass'].includes(data?.mode)) { mode = data.mode; ui?.redraw(); } });
+  events.on(CHANNELS.permissionMode, data => { if (nonceOk(events, data) && ['ask', 'full', 'bypass'].includes(data?.mode)) { mode = data.mode; ui?.redraw(); } });
   guard.start();
 
   // Tools that depend on what Studio enables are registered when the state arrives.
