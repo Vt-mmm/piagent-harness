@@ -126,7 +126,6 @@ export default function piagentHarness(pi, options = {}) {
 
   pi.on('session_start', async (_event, ctx) => {
     current.ctx = ctx;
-    await guard.verify();
     const id = ctx.sessionManager?.getSessionId?.() ?? `local-${process.pid}`;
     status = new StatusFile({ conversation: id, title: ctx.sessionManager?.getSessionName?.() ?? '', project: path.basename(cwd), dir: options.statusDir });
     status.set('idle');
@@ -159,6 +158,7 @@ export default function piagentHarness(pi, options = {}) {
 
   pi.on('tool_call', async (event, ctx) => {
     current.ctx = ctx;
+    if (!guard.checked) await guard.verify();
     const blocked = guard.onToolCall();
     if (blocked) return blocked;
     const run = h.run;

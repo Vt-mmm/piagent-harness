@@ -165,3 +165,29 @@ test('run.state as the provider sends it today (roles in helperCalls, protocol a
   assert.deepEqual([richer.helperLimit, richer.workflow.review, richer.capabilities], [4, 'require', ['memory']]);
   assert.deepEqual(normalizeRunState({ v: 1, harness: {} }, state).roles, ['scout', 'review'], 'a state without roles keeps those it knew');
 });
+
+test('the sandbox loads after the harness: its attestation at session_start is not missed, nothing is blocked or reported', async () => {
+  const dir = project(), pi = fakePi(); pi.ctx.cwd = dir;
+  const aside = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-aside-'));
+  const blocked = [], calls = [];
+  piagentHarness(pi, { cwd: dir, stateDir: aside, statusDir: aside, styleDir: aside });
+  pi.events.on(CHANNELS.toolsBlocked, d => blocked.push(d));
+  pi.events.on(CHANNELS.studioCall, d => { calls.push(d); d.reply({ ok: true, status: 200 }); });
+  await pi.fire('session_start', { reason: 'startup' });   // harness handler first: no attestation yet
+  pi.attest();                                             // then the sandbox's session_start handler
+  await user(pi);
+  assert.equal(await pi.fire('tool_call', { toolName: 'read', toolCallId: 't1', input: { path: 'app.js' } }), undefined);
+  assert.deepEqual(blocked, []); assert.deepEqual(calls, []);
+});
+
+test('no attestation at all (sandbox not loaded): the first run is blocked and Studio is told once', async () => {
+  const dir = project(), pi = fakePi(); pi.ctx.cwd = dir;
+  const aside = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-aside-'));
+  const calls = [];
+  piagentHarness(pi, { cwd: dir, stateDir: aside, statusDir: aside, styleDir: aside });
+  pi.events.on(CHANNELS.studioCall, d => { calls.push(d); d.reply({ ok: true, status: 200 }); });
+  await pi.fire('session_start', {}); await user(pi);
+  const out = await pi.fire('tool_call', { toolName: 'read', toolCallId: 't1', input: {} });
+  assert.equal(out?.block, true);
+  assert.equal(calls.filter(c => c.path === '/studio/v1/managed/tool-failures').length, 1);
+});

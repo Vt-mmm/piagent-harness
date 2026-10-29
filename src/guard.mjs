@@ -31,13 +31,15 @@ export const BLOCK_REASON = 'managed-toolset-untrusted: the core tools (bash, re
   + 'so no tool call is allowed. Start Pi with piagent-sandbox loaded before any other package that registers these tools.';
 
 export class ToolsetGuard {
-  constructor({ events, getTools, report = async () => {} }) { Object.assign(this, { events, getTools, report, attested: new Map(), blocked: false, bad: [], reported: false }); }
+  constructor({ events, getTools, report = async () => {} }) { Object.assign(this, { events, getTools, report, attested: new Map(), blocked: false, bad: [], reported: false, checked: false }); }
   start() {
     return this.events.on(CHANNELS.toolsAttest, data => { for (const t of Array.isArray(data?.tools) ? data.tools : []) if (typeof t?.name === 'string'
       && typeof t.source === 'string') this.attested.set(t.name, t.source); });
   }
-  // Called when a session opens (and before each run): decides, tells Studio once.
+  // Called before each run (and before the first tool call if no run came first): decides, tells Studio once.
+  // Not at session_start: the sandbox is loaded after the harness and attests in its own session_start.
   async verify() {
+    this.checked = true;
     const result = checkToolset(this.getTools(), this.attested);
     this.blocked = !result.ok; this.bad = result.bad;
     if (this.blocked) {
