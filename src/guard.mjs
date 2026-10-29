@@ -7,7 +7,10 @@ import { CHANNELS, CONTRACT_VERSION } from './bus.mjs';
 // (the first package loaded wins a duplicate name), every tool call is blocked
 // and Studio is told.
 export const CORE_TOOLS = Object.freeze(['bash', 'read', 'edit', 'write', 'grep', 'find', 'ls']);
-const sameSource = (info, source) => !!info && !!source && (info.path === source || info.source === source);
+// The sandbox names itself by package ("piagent-sandbox"); Pi's sourceInfo of a tool loaded with -e (or
+// installed) is the entry file's path with source "cli". It matches when a folder of that path is
+// the package, so a look-alike name ("piagent-sandbox-fake") or Pi's own "builtin:bash" does not.
+const sameSource = (info, source) => !!info && !!source && (info.source === source || String(info.path ?? '').split(/[\\/]/).includes(source));
 
 // -> { ok, bad: [{ name, found }] }. `attested`: Map name -> source from the sandbox.
 export function checkToolset(tools, attested) {
@@ -19,6 +22,9 @@ export function checkToolset(tools, attested) {
     else if (!want) bad.push({ name, found: 'no-attestation' });
     else if (!sameSource(tool.sourceInfo, want)) bad.push({ name, found: String(tool.sourceInfo?.path ?? tool.sourceInfo?.source ?? 'unknown').replace(/^.*\//, '') });
   }
+  // One package registers all seven: tools that come from different files are not one boundary.
+  const paths = new Set(CORE_TOOLS.map(n => byName.get(n)?.sourceInfo?.path).filter(Boolean));
+  if (!bad.length && paths.size > 1) bad.push({ name: 'toolset', found: 'mixed-sources' });
   return { ok: bad.length === 0, bad };
 }
 export const BLOCK_REASON = 'managed-toolset-untrusted: the core tools (bash, read, edit, write, grep, find, ls) do not come from piagent-sandbox, '

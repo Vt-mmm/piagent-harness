@@ -68,24 +68,38 @@ test('the reviewer is told to read only the changed files after a fix', async ()
   assert.match(second, /the rest of the patch was\s+reviewed and has not changed/);
 });
 
-test('child session: read-only grant of its own, asked over the bus', async () => {
-  const events = fakeBus(), requests = [];
-  events.on(CHANNELS.grantRequest, data => { requests.push(data); data.reply(data.release ? { ok: true } : { ok: true, role: 'child', effort: 'low', models: [{ id: 'm' }], modelRuntime: {} }); });
+test('child session: grant of its own from the provider, read-only tools from the sandbox, both over the bus', async () => {
+  const events = fakeBus(), requests = [], closes = [], streamed = [];
+  events.on(CHANNELS.grantRequest, data => { requests.push(data); data.reply({ v: 1, ok: true, role: data.role, effort: 'low', models: [{ id: 'm1', contextWindow: 100_000, maxTokens: 4000,
+    reasoning: true }], stream: (context, options) => { streamed.push(context); return 'stream'; } }); });
+  events.on(CHANNELS.grantClose, data => closes.push(data));
   events.on(CHANNELS.childTools, data => { requests.push(data); data.reply({ ok: true, tools: ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write'].map(name => ({ name })) }); });
-  let sessionOptions = null;
-  const sdk = { SettingsManager: { inMemory: () => ({}) }, SessionManager: { inMemory: () => ({}) },
+  let sessionOptions = null, provider = null;
+  const runtime = { registerProvider: (name, config) => { provider = { name, config }; }, getModel: (p, id) => ({ provider: p, id }) };
+  const sdk = { ModelRuntime: { create: async () => runtime }, SettingsManager: { inMemory: () => ({}) }, SessionManager: { inMemory: () => ({}) },
     createAgentSession: async o => { sessionOptions = o; return { session: { messages: [{ role: 'assistant', content: [{ type: 'text', text: 'ok' }], stopReason: 'stop',
       usage: { totalTokens: 7 } }], prompt: async () => {}, abort() {}, dispose() {} } }; } };
-  const child = await childSessions({ events, cwd: '/p', loadSdk: async () => sdk }).create({ role: 'review', key: 'review', setup: { commands: false, web: false, prompt: 'p' } });
+  const child = await childSessions({ events, cwd: '/p', loadSdk: async () => sdk, loadAi: async () => ({ InMemoryCredentialStore: class {} }) })
+    .create({ role: 'review', key: 'review#2', setup: { commands: false, web: false, prompt: 'p' } });
   const answer = await child.ask('hi', { resultTool: { name: 'submit_review' } });
   assert.equal(answer.tokens, 7);
-  const grant = requests.find(r => r.role === 'child' && !r.release);
-  assert.deepEqual([grant.v, grant.purpose], [1, 'review']);
+  assert.deepEqual([requests[0].role, requests[0].slot, requests[0].v], ['review', 2, 1], 'the grant is asked for the role, in its slot');
   assert.equal(requests.find(r => 'readOnly' in r).readOnly, true);
   assert.deepEqual(sessionOptions.customTools.map(t => t.name), ['read', 'grep', 'find', 'ls', 'submit_review'], 'no edit, write or bash for a reviewer');
   assert.equal(sessionOptions.noTools, 'builtin');
-  await child.close();
-  assert.equal(requests.at(-1).release, true);
+  assert.deepEqual(sessionOptions.model, { provider: 'piagent-helper', id: 'm1' });
+  provider.config.streamSimple({}, 'ctx', {}); assert.deepEqual(streamed, ['ctx'], 'the model streams through the grant, no token in the harness');
+  await child.close(); await child.close();
+  assert.deepEqual(closes.map(c => [c.role, c.slot]), [['review', 2]], 'closed once');
+});
+
+test('no read-only tools from the sandbox: the helper does not start and its grant is closed', async () => {
+  const events = fakeBus(), closes = [];
+  events.on(CHANNELS.grantRequest, data => data.reply({ ok: true, models: [{ id: 'm' }], stream() {} }));
+  events.on(CHANNELS.grantClose, d => closes.push(d));
+  events.on(CHANNELS.childTools, data => data.reply({ ok: false, error: 'no-child-tools' }));
+  await assert.rejects(childSessions({ events, cwd: '/p', loadSdk: async () => ({}) }).create({ role: 'scout', key: 'scout', setup: {} }), /no-child-tools/);
+  assert.equal(closes.length, 1);
 });
 
 test('child grant refused: the helper fails with the provider\'s reason', async () => {

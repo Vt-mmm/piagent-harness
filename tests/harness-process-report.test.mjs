@@ -44,7 +44,8 @@ test('steps left for later are not this run\'s work', async () => {
   assert.deepEqual([report.plan_steps, report.plan_done], [2, 1]);
 });
 
-test('the version follows what Agent Watch advertises', () => {
+test('the version follows what Agent Watch advertises, or the provider\'s protocol number', () => {
+  assert.equal(processVersion({ protocol: 2 }), 2); assert.equal(processVersion({ protocol: 0, features: ['process-v3'] }), 0);
   assert.equal(processVersion([]), 0);
   assert.equal(processVersion(['process']), 1);
   assert.equal(processVersion(['process', 'process-v2']), 2);
@@ -57,8 +58,9 @@ test('the report goes to the provider on the bus, once the Harness has a workflo
   assert.equal(sendProcessReport(events, { features: [], workflow: {} }, run, plan), null, 'no process feature');
   const report = sendProcessReport(events, { features: ['process', 'process-v2', 'process-v3'], workflow: { verify: 'require' } }, run, plan);
   const [channel, payload] = events.log.at(-1);
-  assert.equal(channel, CHANNELS.processReport);
-  assert.deepEqual([payload.v, payload.version, payload.report], [1, 3, report]);
+  assert.equal(channel, CHANNELS.runProcess);
+  assert.deepEqual([payload.v, payload.process], [1, report]);
+  assert.equal(payload.process.version, 3);
 });
 
 test('an empty run reports no_change', () => {

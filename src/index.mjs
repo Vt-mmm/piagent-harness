@@ -31,6 +31,15 @@ import { textOf } from './redact.mjs';
 // piagent-sandbox only through Pi's event bus (package-contract.md).
 const CONTEXT_PROMPT_BUDGET = 60_000;
 
+// run.state as the provider sends it: { runId, harness: { thinking, bypassMode, helperCalls (the helper roles
+// the Harness has, or a number: the call limit), protocol (process version) } }, with the fields the harness
+// also needs (workflow, capabilities, scope, team, skills, helperLimit) added by the provider as it learns them.
+export function normalizeRunState(data, previous = null) {
+  const harness = data.harness ?? {}, roles = Array.isArray(harness.roles) ? harness.roles : Array.isArray(harness.helperCalls) ? harness.helperCalls : previous?.roles ?? [];
+  return { ...previous, ...data, ...harness, roles, helperLimit: Number.isInteger(harness.helperLimit) ? harness.helperLimit : typeof harness.helperCalls === 'number' ? harness.helperCalls
+    : previous?.helperLimit };
+}
+
 export default function piagentHarness(pi, options = {}) {
   const events = pi.events, studio = new StudioClient(events);
   const stateDir = options.stateDir ?? path.join(agentDir(), 'piagent-harness');
@@ -67,7 +76,7 @@ export default function piagentHarness(pi, options = {}) {
     children: null,
   };
   h.children = (() => {
-    const real = childSessions({ events, cwd, loadSdk, extraTools: role => memory && role !== 'verify' ? memoryTools(memory, { readOnly: true }) : [] });
+    const real = childSessions({ events, cwd, loadSdk, loadAi: options.loadAi, extraTools: role => memory && role !== 'verify' ? memoryTools(memory, { readOnly: true }) : [] });
     return { async create(spec) {
       const child = await real.create(spec);
       helpersRunning += 1; helpersTotal += 1; ui?.redraw(); status?.set('working', { helpers: helpersRunning });
@@ -89,7 +98,7 @@ export default function piagentHarness(pi, options = {}) {
   // What the provider tells the harness about the run (policy, roles, features, scope).
   events.on(CHANNELS.runState, data => {
     if (!data || data.v > CONTRACT_VERSION) return;
-    state = { ...data, ...(data.harness ?? {}) }; studio.setState(state);
+    state = normalizeRunState(data, state); studio.setState(state);
     policy = state.workflow ? workflowPolicy(state) : workflowpolicyOff();
     if (typeof state.permissionMode === 'string') mode = state.permissionMode;
     registerLateTools(); ui?.redraw();

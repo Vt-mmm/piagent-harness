@@ -2,10 +2,9 @@
 // bus (package-contract.md). Every payload carries `v`; a request carries a
 // `reply` function, which the answering package calls once.
 export const CHANNELS = Object.freeze({
-  grantRequest: 'piagent:grant.request', grantResult: 'piagent:grant.result', runState: 'piagent:run.state',
-  toolsAttest: 'piagent:tools.attest', permissionMode: 'piagent:permission.mode',
-  studioFetch: 'piagent:studio.fetch', childTools: 'piagent:tools.child', processReport: 'piagent:process.report',
-  toolsBlocked: 'piagent:tools.blocked',
+  grantRequest: 'piagent:grant.request', grantClose: 'piagent:grant.close', runState: 'piagent:run.state', runProcess: 'piagent:run.process',
+  studioCall: 'piagent:studio.call', toolsAttest: 'piagent:tools.attest', permissionMode: 'piagent:permission.mode',
+  childTools: 'piagent:tools.child', toolsBlocked: 'piagent:tools.blocked',
 });
 export const CONTRACT_VERSION = 1;
 

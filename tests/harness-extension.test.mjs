@@ -19,7 +19,7 @@ async function boot(workflow = { plan: 'off', verify: 'require', review: 'off' }
   const aside = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-aside-'));  // outside the project, as in real use
   piagentHarness(pi, { cwd: dir, stateDir: path.join(aside, 'state'), statusDir: path.join(aside, 'status'), styleDir: path.join(aside, 'style') });
   pi.aside = aside; pi.attest();
-  pi.events.emit(CHANNELS.runState, { v: 1, workflow, roles: [], features: ['process', 'process-v2', 'process-v3'], capabilities: [], ...extra });
+  pi.events.emit(CHANNELS.runState, { v: 1, runId: 'r1', harness: { thinking: {}, bypassMode: false, helperCalls: [], protocol: 3, workflow, ...extra }, capabilities: [] });
   await pi.fire('session_start', { reason: 'startup' });
   return { pi, dir, aside: pi.aside };
 }
@@ -50,8 +50,8 @@ test('whole round: edit without a check is sent back; a passing check ends it; t
   const second = await pi.fire('agent_before_settle', { outcome: 'completed' });
   assert.equal(second.continue, false);
   assert.match(second.entries.at(-1).content, /Done\.|Process status/);
-  const report = pi.events.log.find(([c]) => c === CHANNELS.processReport)[1];
-  assert.equal(report.version, 3); assert.equal(report.report.verified, true); assert.equal(report.report.checks, 1); assert.equal(report.report.outcome, 'clean');
+  const report = pi.events.log.find(([c]) => c === CHANNELS.runProcess)[1].process;
+  assert.equal(report.version, 3); assert.equal(report.verified, true); assert.equal(report.checks, 1); assert.equal(report.outcome, 'clean');
 });
 
 test('piped check with failing output is not verified', async () => {
@@ -138,7 +138,8 @@ test('the status file follows the run: working, then done; removed at shutdown',
 test('the delegate tool appears once Studio says which helpers the Harness has', async () => {
   const { pi } = await boot();
   assert.equal(pi.tools.delegate, undefined);
-  pi.events.emit(CHANNELS.runState, { v: 1, workflow: { verify: 'require' }, roles: ['scout', 'review'], helperCalls: 5 });
+  pi.events.emit(CHANNELS.runState, { v: 1, runId: 'r1', harness: { thinking: {}, bypassMode: false, helperCalls: ['scout', 'review'], helperLimit: 5, protocol: 3,
+    workflow: { verify: 'require' } } });
   assert.ok(pi.tools.delegate); assert.match(pi.tools.delegate.description, /up to 5 times per user message/);
   assert.deepEqual(pi.tools.delegate.parameters.properties.role.enum, ['scout', 'research', 'verify', 'review']);
 });
@@ -152,4 +153,15 @@ test('without run state from the provider the harness adds no process', async ()
   assert.doesNotMatch(out.systemPrompt, /Process for code changes/);
   fs.writeFileSync(path.join(dir, 'app.js'), 'x'); await pi.fire('tool_result', { toolName: 'edit', toolCallId: 'e', input: { path: 'app.js' }, isError: false, content: [] });
   assert.equal((await pi.fire('agent_before_settle', { outcome: 'completed' })).continue, false);
+});
+
+test('run.state as the provider sends it today (roles in helperCalls, protocol as a number) and with the fields the harness asks to add', async () => {
+  const { normalizeRunState } = await import('../src/index.mjs');
+  const today = { v: 1, runId: 'r1', harness: { thinking: { allowed: ['low'], effort: 'low' }, bypassMode: false, helperCalls: ['scout', 'review'], protocol: 3 } };
+  const state = normalizeRunState(today);
+  assert.deepEqual([state.roles, state.protocol, state.helperLimit], [['scout', 'review'], 3, undefined]);
+  assert.equal(normalizeRunState({ v: 1, harness: { helperCalls: 5 } }).helperLimit, 5);
+  const richer = normalizeRunState({ v: 1, capabilities: ['memory'], scope: { key_id: 'k' }, harness: { helperCalls: ['review'], helperLimit: 4, workflow: { review: 'require' } } }, state);
+  assert.deepEqual([richer.helperLimit, richer.workflow.review, richer.capabilities], [4, 'require', ['memory']]);
+  assert.deepEqual(normalizeRunState({ v: 1, harness: {} }, state).roles, ['scout', 'review'], 'a state without roles keeps those it knew');
 });

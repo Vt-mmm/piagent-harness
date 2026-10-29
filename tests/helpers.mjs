@@ -62,7 +62,7 @@ export function helperHost({ roles = ['scout', 'research', 'verify', 'review'], 
 
 // Pi as the harness sees it: handlers by event, tools, messages and entries recorded.
 export function fakePi() {
-  const handlers = {}, tools = {}, commands = {}, messages = [], entries = [], events = fakeBus(), sandbox = '/pkgs/piagent-sandbox/index.mjs';
+  const handlers = {}, tools = {}, commands = {}, messages = [], entries = [], events = fakeBus(), sandbox = '/pkgs/piagent-sandbox/src/index.mjs';
   const pi = { events, handlers, tools, commands, messages, entries,
     on(name, fn) { (handlers[name] ??= []).push(fn); }, registerTool(t) { tools[t.name] = t; }, registerCommand(n, o) { commands[n] = o; },
     appendEntry(customType, data) { entries.push({ type: 'custom', customType, data }); }, sendMessage(m, o) { messages.push([m, o]); },
@@ -71,8 +71,8 @@ export function fakePi() {
     getSessionName: () => 'Fix cart' },
     getContextUsage: () => ctx.usage, compact: o => ctx.compactCalls.push(o), compactCalls: [], usage: undefined, ui: {} };
   pi.ctx = ctx; pi.studioCalls = [];
-  events.on('piagent:studio.fetch', data => { pi.studioCalls.push(data); data.reply({ ok: true, status: 200, body: {} }); });
+  events.on('piagent:studio.call', data => { pi.studioCalls.push(data); data.reply({ ok: true, status: 200, body: {} }); });
   pi.fire = async (name, event = {}) => { let last; for (const fn of handlers[name] ?? []) last = (await fn(event, ctx)) ?? last; return last; };
-  pi.attest = () => events.emit('piagent:tools.attest', { v: 1, tools: ['bash', 'read', 'edit', 'write', 'grep', 'find', 'ls'].map(name => ({ name, source: sandbox })) });
+  pi.attest = () => events.emit('piagent:tools.attest', { v: 1, tools: ['bash', 'read', 'edit', 'write', 'grep', 'find', 'ls'].map(name => ({ name, source: 'piagent-sandbox' })) });
   return pi;
 }

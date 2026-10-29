@@ -51,7 +51,7 @@ test('bus: a request gets its reply; no answer falls back after the timeout; the
 });
 test('Studio client goes through the provider and never sees a token', async () => {
   const events = fakeBus(); let seen;
-  events.on(CHANNELS.studioFetch, d => { seen = d; d.reply({ ok: true, status: 200, body: { a: 1 } }); });
+  events.on(CHANNELS.studioCall, d => { seen = d; d.reply({ ok: true, status: 200, body: '{"a":1}' }); });
   const studio = new StudioClient(events); studio.setState({ capabilities: ['memory'] });
   assert.deepEqual(await studio.fetch('/v1/memory/brief', { body: { q: 1 }, role: 'review' }), { ok: true, status: 200, body: { a: 1 }, error: undefined });
   assert.deepEqual([seen.role, seen.path, seen.method], ['review', '/v1/memory/brief', 'POST']); assert.equal(JSON.stringify(seen).includes('token'), false);

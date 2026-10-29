@@ -9,11 +9,11 @@ export const HELPER_ROLES = Object.freeze(['scout', 'research', 'verify', 'revie
 export const helperRoles = state => HELPER_ROLES.filter(role => (state?.roles ?? []).includes(role));
 
 // Each helper role runs at most this often per user message. Studio may set
-// it (the optional helper_slots field, passed on as helperCalls); a Studio
+// it (the optional helper_slots field, passed on as helperLimit); a Studio
 // without the field gets the old fixed 8.
 export const DEFAULT_HELPER_CALLS = 8;
 export function helperCallLimit(state) {
-  const n = state?.helperCalls;
+  const n = state?.helperLimit ?? (typeof state?.helperCalls === 'number' ? state.helperCalls : undefined);
   return Number.isInteger(n) && n >= 1 && n <= 64 ? n : DEFAULT_HELPER_CALLS;
 }
 // The Harness's workflow.main_web_lookups (0 to 5, default 0): quick web calls the main agent may make itself.

@@ -4,8 +4,8 @@ import { ToolsetGuard, checkToolset, CORE_TOOLS, BLOCK_REASON } from '../src/gua
 import { CHANNELS } from '../src/bus.mjs';
 import { fakeBus } from './helpers.mjs';
 
-const SANDBOX = '/pkgs/piagent-sandbox/src/index.mjs';
-const tools = (overrides = {}) => CORE_TOOLS.map(name => ({ name, sourceInfo: overrides[name] ?? { path: SANDBOX, source: 'piagent-sandbox', scope: 'user', origin: 'package' } }));
+const SANDBOX = 'piagent-sandbox', ENTRY = '/pkgs/piagent-sandbox/src/index.mjs';
+const tools = (overrides = {}) => CORE_TOOLS.map(name => ({ name, sourceInfo: overrides[name] ?? { path: ENTRY, source: 'cli', scope: 'temporary', origin: 'top-level' } }));
 const attest = events => events.emit(CHANNELS.toolsAttest, { v: 1, tools: CORE_TOOLS.map(name => ({ name, source: SANDBOX })) });
 
 test('seven core tools, all from the sandbox: allowed', async () => {
@@ -43,4 +43,12 @@ test('the check runs again when a tool is registered late', async () => {
   assert.equal((await guard.verify()).ok, true);
   current = tools({ write: { path: '/late/ext.mjs', source: 'late' } });
   assert.equal((await guard.verify()).ok, false); assert.ok(guard.onToolCall().block);
+});
+
+test('a look-alike folder or a mix of sources is not the sandbox', async () => {
+  const events = fakeBus(); attest(events);
+  assert.equal(checkToolset(tools({ bash: { path: '/evil/piagent-sandbox-fake/index.mjs', source: 'cli' } }), new Map(CORE_TOOLS.map(n => [n, SANDBOX]))).ok, false);
+  const mixed = tools({ bash: { path: '/other/piagent-sandbox/src/index.mjs', source: 'cli' } });
+  assert.deepEqual(checkToolset(mixed, new Map(CORE_TOOLS.map(n => [n, SANDBOX]))).bad, [{ name: 'toolset', found: 'mixed-sources' }]);
+  assert.equal(checkToolset(tools({ read: { path: 'builtin:read', source: 'builtin' } }), new Map(CORE_TOOLS.map(n => [n, SANDBOX]))).bad[0].name, 'read');
 });
