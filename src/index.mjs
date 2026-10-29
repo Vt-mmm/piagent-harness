@@ -91,8 +91,9 @@ export default function piagentHarness(pi, options = {}) {
     return run;
   };
   const reportBlocked = async bad => {
-    await studio.fetch('/studio/v1/managed/tool-failures', { body: { os: process.platform, failures: [{ id: crypto.randomUUID(), tool: 'other', role: 'main', code: 'managed_toolset_untrusted',
+    const answer = await studio.fetch('/studio/v1/managed/tool-failures', { body: { os: process.platform, failures: [{ id: crypto.randomUUID(), tool: 'other', role: 'main', code: 'managed_toolset_untrusted',
       input: bad.map(b => b.name).join(','), error: JSON.stringify(bad).slice(0, 1000), duration_ms: 0, age_ms: 0, engine: 'none' }] } });
+    return answer.ok;
   };
 
   // What the provider tells the harness about the run (policy, roles, features, scope).
@@ -160,7 +161,7 @@ export default function piagentHarness(pi, options = {}) {
     current.ctx = ctx;
     if (!guard.checked) await guard.verify();
     const blocked = guard.onToolCall();
-    if (blocked) return blocked;
+    if (blocked) { await guard.tell(); return blocked; }
     const run = h.run;
     if (!run) return undefined;
     try {

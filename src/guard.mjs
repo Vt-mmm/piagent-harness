@@ -44,9 +44,15 @@ export class ToolsetGuard {
     this.blocked = !result.ok; this.bad = result.bad;
     if (this.blocked) {
       this.events.emit(CHANNELS.toolsBlocked, { v: CONTRACT_VERSION, bad: result.bad });
-      if (!this.reported) { this.reported = true; try { await this.report(result.bad); } catch { /* Studio may be unreachable */ } }
+      await this.tell();
     }
     return result;
+  }
+  // Tells Studio once it has been heard: the report needs the run's grant, which the provider opens after the
+  // first before_agent_start, so a report that finds no run is tried again at the first blocked tool call.
+  async tell() {
+    if (this.reported || !this.blocked) return;
+    try { this.reported = (await this.report(this.bad)) !== false; } catch { /* Studio may be unreachable: tried again */ }
   }
   // The tool_call handler's answer.
   onToolCall() { return this.blocked ? { block: true, reason: BLOCK_REASON } : undefined; }

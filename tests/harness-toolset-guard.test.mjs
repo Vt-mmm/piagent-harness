@@ -52,3 +52,16 @@ test('a look-alike folder or a mix of sources is not the sandbox', async () => {
   assert.deepEqual(checkToolset(mixed, new Map(CORE_TOOLS.map(n => [n, SANDBOX]))).bad, [{ name: 'toolset', found: 'mixed-sources' }]);
   assert.equal(checkToolset(tools({ read: { path: 'builtin:read', source: 'builtin' } }), new Map(CORE_TOOLS.map(n => [n, SANDBOX]))).bad[0].name, 'read');
 });
+
+test('a report that finds no run open is tried again at the first blocked tool call, and then not again', async () => {
+  const events = fakeBus(), answers = [false, true], reports = [];
+  const fake = tools().map(t => t.name === 'bash' ? { ...t, sourceInfo: { path: '/x/other.mjs', source: 'cli' } } : t);
+  const guard = new ToolsetGuard({ events, getTools: () => fake, report: async bad => { reports.push(bad); return answers.shift(); } });
+  guard.start(); attest(events);
+  await guard.verify();                       // before the run opens: Studio cannot be reached
+  assert.equal(guard.reported, false);
+  await guard.tell();                         // at the blocked tool call, the run is open
+  assert.equal(guard.reported, true);
+  await guard.tell(); await guard.verify();
+  assert.equal(reports.length, 2);
+});
