@@ -26,7 +26,7 @@ import { StatusFile, agentDir } from './status-file.mjs';
 import { installCompanyUi, registerStyleCommand } from './ui.mjs';
 import { textOf } from './redact.mjs';
 
-// piagent-harness: company mode on stock Pi 1.3.0. The completion gate, the
+// piagent-harness: company mode on stock Pi 1.4.0. The completion gate, the
 // helpers, the ledger, team memory, the member's questions, the checklist, the
 // company Terminal and the process report. It talks to piagent-provider and
 // piagent-sandbox only through Pi's event bus (package-contract.md).

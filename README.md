@@ -2,7 +2,7 @@
 
 Company harness for Piagent company mode: completion gate, review helpers, ledger, team memory, reports to Studio.
 
-Part of the Piagent company-mode bundle for stock [Pi](https://github.com/earendil-works) (pinned: `@earendil-works/pi-coding-agent` 1.3.0). See `piagent-bundle/docs` for the plan, contracts and runbook.
+Part of the Piagent company-mode bundle for stock [Pi](https://github.com/earendil-works) (pinned: `@earendil-works/pi-coding-agent` 1.4.0). See `piagent-bundle/docs` for the plan, contracts and runbook.
 
 Status: phase 2.3 implemented and tested against fakes (`npm test`, offline). Not yet run together with the real `piagent-provider` and `piagent-sandbox`; see "Not verified" below.
 
@@ -28,7 +28,7 @@ Load order for Pi: `pi --no-extensions -e piagent-harness -e piagent-sandbox -e 
 
 - Child helper sessions against the real provider (`grant.request` with `role: child`) and the real sandbox (`piagent:tools.child`): tested with fake bus replies only.
 - The `sourceInfo` check against the real sandbox's attestation: tested with a fake extension registering `bash`.
-- A full run in Pi 1.3.0's Terminal (header, footer, `/style`, `ask_user` selectors): the logic is tested with fake UI objects.
+- A full run in Pi 1.4.0's Terminal (header, footer, `/style`, `ask_user` selectors): the logic is tested with fake UI objects.
 - Studio endpoints (memory, settle, tool failures) against a real Studio: tested with a stub.
 - Multi-repository folders for team memory (one repository per folder only).
 
