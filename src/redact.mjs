@@ -1,15 +1,9 @@
 import os from 'node:os';
+import { redactSecrets } from './secret-patterns.mjs';
 
-// Keys and tokens never reach a log, a report or a memory line.
-const SECRETS = [
-  /\bas_(?:live|run|device)_[A-Za-z0-9_-]{8,}/g,
-  /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi,
-  /\bsk-[A-Za-z0-9_-]{12,}/g,
-  /\b(?:ghp|gho|ghs|github_pat)_[A-Za-z0-9_]{16,}/g,
-  /\bAKIA[0-9A-Z]{16}\b/g,
-];
+// Keys and tokens never reach a log, a report or a memory line. The shapes live in secret-patterns.mjs (the same file in every package).
 export const redact = (text, home = os.homedir()) => {
-  const out = SECRETS.reduce((t, pattern) => t.replace(pattern, '[REDACTED_SECRET]'), String(text ?? ''));
+  const out = redactSecrets(text);
   return (home.length > 1 ? out.split(home).join('~') : out).replace(/\0/g, '');
 };
 export const clip = (value, n) => typeof value === 'string' ? value.trim().slice(0, n) : '';

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
+import { SAFE_GIT_ARGS, safeGitEnv } from './safe-git.mjs';
 
 // The patch a reviewer reads: this turn's change (diff against HEAD or the
 // commit the turn started from, plus new files), the commits since a ref, or
@@ -11,7 +12,7 @@ const MAX_UNTRACKED_FILE = 400_000, MAX_UNTRACKED = 200, MAX_PATCH = 16 * 1024 *
 const BASE = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
 export function gitReader(cwd) {
   return args => new Promise((resolve, reject) => {
-    execFile('git', ['--no-pager', '-c', 'core.quotepath=off', ...args], { cwd, maxBuffer: MAX_PATCH, encoding: 'utf8', timeout: 30_000 },
+    execFile('git', ['--no-pager', ...SAFE_GIT_ARGS, '-c', 'core.quotepath=off', ...args], { cwd, maxBuffer: MAX_PATCH, encoding: 'utf8', timeout: 30_000, env: safeGitEnv() },
       (error, stdout) => error ? reject(error) : resolve(stdout));
   });
 }
@@ -60,7 +61,7 @@ async function untrackedFiles(git, cwd, scope) {
 export async function readPatchSnapshot(git, cwd, { base = null, scope = null, untracked = true, from } = {}) {
   const against = base && BASE.test(base) ? base : 'HEAD';
   const paths = scope ? ['--', ...scope] : [];
-  const patch = await git(['diff', '--no-color', '--no-ext-diff', against, ...paths]);
+  const patch = await git(['diff', '--no-color', '--no-ext-diff', '--no-textconv', against, ...paths]);
   const files = untracked ? await untrackedFiles(git, cwd, scope ? new Set(scope) : null) : [];
   const value = { patch, untracked: files, ...(base ? { base } : {}) };
   return { ...value, digest: sha(JSON.stringify(value)), ...(from ? { from } : {}) };
@@ -69,7 +70,7 @@ export const emptySnapshot = s => !s?.patch && !(s?.untracked ?? []).length;
 // What each changed or new file holds now: { path: hash }. Compared before and
 // after, it names the files a command or a fix changed.
 export async function readChangedFiles(git, cwd, base = null) {
-  const names = new Set((await git(['diff', '--name-only', '-z', base && BASE.test(base) ? base : 'HEAD'])).split('\0').filter(Boolean));
+  const names = new Set((await git(['diff', '--name-only', '-z', '--no-ext-diff', '--no-textconv', base && BASE.test(base) ? base : 'HEAD'])).split('\0').filter(Boolean));
   for (const name of (await git(['ls-files', '--others', '--exclude-standard', '-z'])).split('\0').filter(Boolean)) names.add(name);
   const out = new Map();
   for (const name of [...names].slice(0, 2000)) {

@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { SAFE_GIT_ARGS, safeGitEnv } from './safe-git.mjs';
 
 // Which repository team memory uses in the folder and what git says about it.
 // Memory only reads git (remote, branch, log, status).
@@ -13,7 +14,7 @@ export function repoKey(remote) {
   s = s.toLowerCase().replace(/\.git\/?$/, '').replace(/\/+$/, '').replace(/\/{2,}/g, '/');
   return /^[a-z0-9][a-z0-9._-]*\/[a-z0-9._/-]+$/.test(s) && s.length <= 200 && !s.includes('..') ? s : null;
 }
-const gitOnce = (cwd, args, timeout, signal) => new Promise(resolve => execFile('git', ['-C', cwd, ...args], { timeout, signal, maxBuffer: 4 << 20, encoding: 'utf8' },
+const gitOnce = (cwd, args, timeout, signal) => new Promise(resolve => execFile('git', ['-C', cwd, ...SAFE_GIT_ARGS, ...args], { timeout, signal, maxBuffer: 4 << 20, encoding: 'utf8', env: safeGitEnv() },
   (error, stdout, stderr) => resolve(error ? { out: null, err: String(stderr ?? '') } : { out: stdout })));
 // A repository another user owns makes git refuse ("dubious ownership"): the read is retried trusting that folder.
 export async function git(cwd, args, timeout = 3_000, signal) {

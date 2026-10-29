@@ -1,3 +1,4 @@
+import { withNonce } from './bus-nonce.mjs';
 import { request, CHANNELS, CONTRACT_VERSION } from './bus.mjs';
 import { READ_TOOLS } from './helper-roles.mjs';
 import { HELPER_UNTRUSTED_RULE } from './untrusted.mjs';
@@ -36,8 +37,8 @@ export function childSessions({ events, cwd, loadSdk, loadAi = () => import('@ea
       let open = true, toolsOpen = false;
       // The sandbox keeps a read-only boundary per key until told to drop it.
       const close = async () => {
-        if (toolsOpen) { toolsOpen = false; events.emit(CHANNELS.childToolsClose, { v: CONTRACT_VERSION, key: key ?? role }); }
-        if (open) { open = false; events.emit(CHANNELS.grantClose, { v: CONTRACT_VERSION, role: roleOf(role), ...(slot ? { slot } : {}) }); }
+        if (toolsOpen) { toolsOpen = false; events.emit(CHANNELS.childToolsClose, withNonce(events, { v: CONTRACT_VERSION, key: key ?? role })); }
+        if (open) { open = false; events.emit(CHANNELS.grantClose, withNonce(events, { v: CONTRACT_VERSION, role: roleOf(role), ...(slot ? { slot } : {}) })); }
       };
       try {
         toolsOpen = true;
